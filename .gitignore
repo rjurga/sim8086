@@ -1,0 +1,8 @@
+﻿.vs
+data
+external
+out
+x64
+dev.bat
+Session.vim
+*.swp
