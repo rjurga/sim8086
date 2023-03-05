@@ -6,3 +6,10 @@ x64
 dev.bat
 Session.vim
 *.swp
+*.pdb
+*.exe
+*.sln
+*.vcxproj
+*.filters
+*.user
+*.asm

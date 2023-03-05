@@ -1,67 +1,88 @@
+#include <fstream>
+#include <iostream>
+#include <string>
+
 #include <assert.h>
-#include <stdio.h>
 #include <stdint.h>
-#include <string.h>
 
-char inputFileName[]  = "external/computer_enhance/perfaware/part1/listing_0038_many_register_mov";
-char outputFileName[] = "out/0038.asm";
-
-constexpr size_t c_bufferSize = 1024;
-char g_input[c_bufferSize];
-char g_output[c_bufferSize];
-
-const char registerNamesByte[8][2] =
+const char registerNames[2][8][3] =
 {
-    { 'a', 'l' },
-    { 'c', 'l' },
-    { 'd', 'l' },
-    { 'b', 'l' },
-    { 'a', 'h' },
-    { 'c', 'h' },
-    { 'd', 'h' },
-    { 'b', 'h' },
+    {
+        { "al" },
+        { "cl" },
+        { "dl" },
+        { "bl" },
+        { "ah" },
+        { "ch" },
+        { "dh" },
+        { "bh" },
+    },
+    {
+        { "ax" },
+        { "cx" },
+        { "dx" },
+        { "bx" },
+        { "sp" },
+        { "bp" },
+        { "si" },
+        { "di" },
+    }
 };
 
-const char registerNamesWord[8][2] =
+bool tryReadFile(char* fileName, std::string* result)
 {
-    { 'a', 'x' },
-    { 'c', 'x' },
-    { 'd', 'x' },
-    { 'b', 'x' },
-    { 's', 'p' },
-    { 'b', 'p' },
-    { 's', 'i' },
-    { 'd', 'i' },
-};
+    std::ifstream file;
+    file.open(fileName, std::ifstream::binary | std::ifstream::in);
+    if (!file.good())
+    {
+        std::cout << "Failed to open file " << fileName << ": " << std::strerror(errno) << "\n";
+        return false;
+    }
+
+    std::string s;
+    while (true)
+    {
+        char c = file.get();
+        if (c == EOF)
+        {
+            if (file.bad())
+            {
+                std::cout << "Error reading file " << fileName << ": " << std::strerror(errno) << "\n";
+                return false;
+            }
+
+            break;
+        }
+
+        s += c;
+    }
+
+    *result = s;
+    return true;
+}
 
 const char* getRegName(uint8_t reg, uint8_t w)
 {
     assert(reg < 8);
-
-    const char* name = w ? registerNamesWord[reg] : registerNamesByte[reg];
+    const char* name = registerNames[w][reg];
     return name;
 }
 
-size_t decode(long inputSize)
+void decode(const std::string& input, std::string* output)
 {
-    char* writeCursor = g_output;
+    *output += "bits 16\n\n";
 
-    strcpy(g_output, "bits 16\n\n");
-    writeCursor += 9;
-
-    for (int i = 0; i < inputSize; i += 2)
+    for (size_t i = 0, end = input.size(); i < end; i += 2)
     {
-        assert(writeCursor - g_output < c_bufferSize - 12);
-
         // Extract fields
 
-        uint8_t byte1 = g_input[i];
+        uint8_t byte1 = input[i];
 
         uint8_t opcode = byte1 >> 2;
         uint8_t d = (byte1 >> 1) & 1;
         uint8_t w = byte1 & 1;
 
-        uint8_t byte2 = g_input[i+1];
+        uint8_t byte2 = input[i+1];
 
         uint8_t mod = byte2 >> 6;
         uint8_t reg = (byte2 >> 3) & 7;
@@ -71,70 +92,55 @@ size_t decode(long inputSize)
 
         switch (opcode)
         {
-        case 0b100010:
-        {
-            strcpy(writeCursor, "mov ");
-            writeCursor += 4;
-        } break;
+            case 0b100010:
+            {
+                *output += "mov ";
+            }
+            break;
 
-        default:
-        {
-            assert(false);
-        } break;
+            default:
+            {
+                assert(false);
+                return;
+            }
+            break;
         }
 
-        const char* regName = getRegName(reg, w);
-        const char* rmName  = getRegName(rm, w);
+        const char* regName = registerNames[w][reg];
+        const char* rmName  = registerNames[w][rm];
 
         const char* destination = d ? regName : rmName;
         const char* source      = d ? rmName  : regName;
 
-        *writeCursor++ = destination[0];
-        *writeCursor++ = destination[1];
-        *writeCursor++ = ',';
-        *writeCursor++ = ' ';
-        *writeCursor++ = source[0];
-        *writeCursor++ = source[1];
-        *writeCursor++ = '\n';
+        *output += destination;
+        *output += ", ";
+        *output += source;
+        *output += '\n';
     }
-
-    size_t outputSize = writeCursor - g_output;
-    return outputSize;
 }
 
-int main()
+int main(int argc, char** argv)
 {
+    if (argc != 2)
+    {
+        std::cout << "Usage: sim8086 [file]\n";
+        return 0;
+    }
+
     // Read input
 
-    FILE* pFile = fopen(inputFileName, "rb");
-    assert(pFile);
-
-    int failed = fseek(pFile, 0, SEEK_END);
-    assert(!failed);
-
-    long fileSize = ftell(pFile);
-    assert(fileSize != -1);
-    assert(fileSize <= c_bufferSize);
-
-    failed = fseek(pFile, 0, SEEK_SET);
-    assert(!failed);
-
-    size_t bytesRead = fread(g_input, 1, fileSize, pFile);
-    assert(bytesRead == fileSize);
-
-    fclose(pFile);
+    std::string input;
+    if (!tryReadFile(argv[1], &input))
+    {
+        return 0;
+    }
 
     // Do the work
 
-    size_t outputSize = decode(fileSize);
+    std::string output;
+    decode(input, &output);
 
     // Write output
 
-    pFile = fopen(outputFileName, "w");
-    assert(pFile);
-
-    size_t bytesWritten = fwrite(g_output, 1, outputSize, pFile);
-    assert(bytesWritten == outputSize);
-
-    fclose(pFile);
+    std::cout << output << "\n";
 }
