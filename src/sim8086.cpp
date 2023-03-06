@@ -57,11 +57,17 @@ bool tryReadFile(char* fileName, std::vector<uint8_t>* result)
     return true;
 }
 
-size_t computeEffectiveAddress(const uint8_t* byte, uint8_t mod, uint8_t rm, std::string *effectiveAddress)
+size_t computeEffectiveAddress(
+    std::vector<uint8_t>::const_iterator byte,
+    uint8_t mod,
+    uint8_t rm,
+    std::string *effectiveAddress)
 {
+    assert(effectiveAddress);
+
     // Returns the increment to the instruction pointer that accounts for the size of the displacement.
 
-    size_t iInstruction = 0;
+    int increment = 0;
 
     int16_t displacement = 0;
     const char* baseAndIndex = c_effectiveAddresses[rm];
@@ -79,7 +85,7 @@ size_t computeEffectiveAddress(const uint8_t* byte, uint8_t mod, uint8_t rm, std
                 baseAndIndex = nullptr;
                 displacement = (byte[3] << 8) | byte[2];
 
-                iInstruction += 2;
+                increment += 2;
             }
         }
         break;
@@ -90,7 +96,7 @@ size_t computeEffectiveAddress(const uint8_t* byte, uint8_t mod, uint8_t rm, std
 
             displacement = static_cast<int8_t>(byte[2]);
 
-            iInstruction += 1;
+            increment += 1;
         }
         break;
 
@@ -100,7 +106,7 @@ size_t computeEffectiveAddress(const uint8_t* byte, uint8_t mod, uint8_t rm, std
 
             displacement = (byte[3] << 8) | byte[2];
 
-            iInstruction += 2;
+            increment += 2;
         }
         break;
 
@@ -140,31 +146,30 @@ size_t computeEffectiveAddress(const uint8_t* byte, uint8_t mod, uint8_t rm, std
 
     *effectiveAddress += "]";
 
-    return iInstruction;
+    return increment;
 }
 
 void decode(const std::vector<uint8_t>& input, std::string* output)
 {
     *output += "bits 16\n\n";
 
-    for (size_t iInstruction = 0, end = input.size(); iInstruction < end;)
+    for (auto iInstruction = input.begin(), end = input.end(); iInstruction < end;)
     {
         std::string instructionName;
         std::string destination;
         std::string source;
 
-        const uint8_t* byte = input.data() + iInstruction;
+        const auto byte = iInstruction;
 
         // Extract instruction fields
 
-        uint8_t opcode = byte[0] >> 2;
-        uint8_t d = (byte[0] >> 1) & 1;
-        uint8_t w = byte[0] & 1;
+        uint8_t opcode =  byte[0] >> 2;
+        uint8_t d      = (byte[0] >> 1) & 1;
+        uint8_t w      =  byte[0]       & 1;
 
-        // TODO This breaks if the last instruction is only 1 byte.
-        uint8_t mod = byte[1] >> 6;
-        uint8_t reg = (byte[1] >> 3) & 7;
-        uint8_t rm  = byte[1] & 7;
+        uint8_t mod = (iInstruction + 1 < end) ?  byte[1] >> 6      : 0;
+        uint8_t reg = (iInstruction + 1 < end) ? (byte[1] >> 3) & 7 : 0;
+        uint8_t rm  = (iInstruction + 1 < end) ?  byte[1]       & 7 : 0;
 
         // Disassemble instruction
 
@@ -189,12 +194,12 @@ void decode(const std::vector<uint8_t>& input, std::string* output)
                 }
                 else
                 {
-                    std::string* registerName     = d ? &destination : &source;
-                    std::string* effectiveAddress = d ? &source      : &destination;
+                    std::string& registerName     = d ? destination : source;
+                    std::string& effectiveAddress = d ? source      : destination;
 
-                    *registerName = c_registerNames[w][reg];
+                    registerName = c_registerNames[w][reg];
 
-                    iInstruction += computeEffectiveAddress(byte, mod, rm, effectiveAddress);
+                    iInstruction += computeEffectiveAddress(byte, mod, rm, &effectiveAddress);
                 }
 
                 iInstruction += 2;
@@ -256,13 +261,13 @@ void decode(const std::vector<uint8_t>& input, std::string* output)
             {
                 instructionName = "mov";
 
-                std::string* effectiveAddress = d ? &destination : &source;
-                std::string* accumulator      = d ? &source      : &destination;
+                std::string& effectiveAddress = d ? destination : source;
+                std::string& accumulator      = d ? source      : destination;
 
-                *accumulator = "ax";
+                accumulator = "ax";
 
                 uint16_t addr = (byte[2] << 8) | byte[1];
-                *effectiveAddress = "[" + std::to_string(addr) + "]";
+                effectiveAddress = "[" + std::to_string(addr) + "]";
 
                 iInstruction += 3;
             }
@@ -322,5 +327,5 @@ int main(int argc, char** argv)
 
     // Write output
 
-    std::cout << output << "\n";
+    std::cout << output;
 }
