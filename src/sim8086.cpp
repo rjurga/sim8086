@@ -188,7 +188,6 @@ void decode(const std::vector<uint8_t>& input, std::string* output)
                     const char* regName = c_registerNames[w][reg];
                     const char* rmName  = c_registerNames[w][rm];
 
-
                     destination = d ? regName : rmName;
                     source      = d ? rmName  : regName;
                 }
@@ -203,6 +202,44 @@ void decode(const std::vector<uint8_t>& input, std::string* output)
                 }
 
                 iInstruction += 2;
+            }
+            break;
+
+            // MOV memory to/from accumulator
+
+            case 0b101000:
+            {
+                instructionName = "mov";
+
+                std::string& effectiveAddress = d ? destination : source;
+                std::string& accumulator      = d ? source      : destination;
+
+                accumulator = "ax";
+
+                uint16_t addr = (byte[2] << 8) | byte[1];
+                effectiveAddress = "[" + std::to_string(addr) + "]";
+
+                iInstruction += 3;
+            }
+            break;
+
+            // MOV immediate to register
+
+            case 0b101100:
+            case 0b101101:
+            case 0b101110:
+            case 0b101111:
+            {
+                instructionName = "mov";
+
+                w = (byte[0] >> 3) & 1;
+                reg = byte[0] & 7;
+                destination = c_registerNames[w][reg];
+
+                int16_t data = w ? ((byte[2] << 8) | byte[1]) : static_cast<int8_t>(byte[1]);
+                source = std::to_string(data);
+
+                iInstruction += 2 + w;
             }
             break;
 
@@ -232,44 +269,6 @@ void decode(const std::vector<uint8_t>& input, std::string* output)
                 source += std::to_string(data);
 
                 iInstruction += 3 + displacementOffset + w;
-            }
-            break;
-
-            // MOV immediate to register
-
-            case 0b101100:
-            case 0b101101:
-            case 0b101110:
-            case 0b101111:
-            {
-                instructionName = "mov";
-
-                w = (byte[0] >> 3) & 1;
-                reg = byte[0] & 7;
-                destination = c_registerNames[w][reg];
-
-                int16_t data = w ? ((byte[2] << 8) | byte[1]) : static_cast<int8_t>(byte[1]);
-                source = std::to_string(data);
-
-                iInstruction += 2 + w;
-            }
-            break;
-
-            // MOV memory to/from accumulator
-
-            case 0b101000:
-            {
-                instructionName = "mov";
-
-                std::string& effectiveAddress = d ? destination : source;
-                std::string& accumulator      = d ? source      : destination;
-
-                accumulator = "ax";
-
-                uint16_t addr = (byte[2] << 8) | byte[1];
-                effectiveAddress = "[" + std::to_string(addr) + "]";
-
-                iInstruction += 3;
             }
             break;
 
