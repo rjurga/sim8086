@@ -84,6 +84,9 @@ const char c_loopsAndJCXZ[4][7] =
 
 bool tryReadFile(char* pFileName, std::vector<uint8_t>* pResult)
 {
+    assert(pFileName);
+    assert(pResult);
+
     std::ifstream file;
     file.open(pFileName, std::ifstream::binary | std::ifstream::in);
     if (!file.good())
@@ -235,6 +238,8 @@ int decodeRegOrMemToRegOrMem(
 
 int computeImmediate(std::vector<uint8_t>::const_iterator data, uint8_t s, uint8_t w, std::string* pImmediate)
 {
+    assert(pImmediate);
+
     int dataSize = 1;
 
     int16_t immediate = 0;
@@ -309,6 +314,8 @@ int decodeImmToRegOrMem(
 
 void decodeConditionalJump(int8_t instructionPointerIncrement, std::string* pDestination)
 {
+    assert(pDestination);
+
     *pDestination = "$+";
 
     if (instructionPointerIncrement > 0)
@@ -333,6 +340,8 @@ void decodeConditionalJump(int8_t instructionPointerIncrement, std::string* pDes
 
 void decodeInstructions(const std::vector<uint8_t>& input, std::string* pOutput)
 {
+    assert(pOutput);
+
     *pOutput += "bits 16\n\n";
 
     for (auto iInstruction = input.begin(), end = input.end(); iInstruction < end;)
