@@ -473,7 +473,7 @@ void decodeInstructions(const std::vector<uint8_t>& input, std::string* pOutput)
             case 0b110001:
             {
                 instructionName = "mov";
-                iInstruction += decodeImmToRegOrMem(byte, d, w, &destination, &source);
+                iInstruction += decodeImmToRegOrMem(byte, 0, w, &destination, &source);
             }
             break;
 
