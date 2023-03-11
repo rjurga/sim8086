@@ -54,6 +54,34 @@ const char c_instructionNamesFor100000[8][4] =
     "cmp", // reg = 111
 };
 
+const char c_conditionalJumps[16][4] =
+{
+    "jo",  // byte = 0111 0000
+    "jno", // byte = 0111 0001
+    "jb",  // byte = 0111 0010
+    "jnb", // byte = 0111 0011
+    "je",  // byte = 0111 0100
+    "jne", // byte = 0111 0101
+    "jbe", // byte = 0111 0110
+    "ja",  // byte = 0111 0111
+    "js",  // byte = 0111 1000
+    "jns", // byte = 0111 1001
+    "jp",  // byte = 0111 1010
+    "jnp", // byte = 0111 1011
+    "jl",  // byte = 0111 1100
+    "jnl", // byte = 0111 1101
+    "jle", // byte = 0111 1110
+    "jg",  // byte = 0111 1111
+};
+
+const char c_loopsAndJCXZ[4][7] =
+{
+    "loopnz", // byte = 1110 0000
+    "loopz",  // byte = 1110 0001
+    "loop",   // byte = 1110 0010
+    "jcxz",   // byte = 1110 0011
+};
+
 bool tryReadFile(char* pFileName, std::vector<uint8_t>* pResult)
 {
     std::ifstream file;
@@ -276,6 +304,31 @@ int decodeImmToRegOrMem(
     return instructionPointerIncrement;
 }
 
+// Fills the destination string for conditional jumps.
+// It does not use labels, but relative offsets, in a way that is compatible with the Netwide Assembler.
+
+void decodeConditionalJump(int8_t instructionPointerIncrement, std::string* pDestination)
+{
+    *pDestination = "$+";
+
+    if (instructionPointerIncrement > 0)
+    {
+        *pDestination += "2+";
+    }
+    else if (instructionPointerIncrement < 0)
+    {
+        *pDestination += "2-";
+        instructionPointerIncrement = -instructionPointerIncrement;
+    }
+    else
+    {
+        *pDestination += "0";
+        return;
+    }
+
+    *pDestination += std::to_string(instructionPointerIncrement);
+}
+
 // Decodes the machine code instructions in input and writes the disassembly in pOutput.
 
 void decodeInstructions(const std::vector<uint8_t>& input, std::string* pOutput)
@@ -338,6 +391,22 @@ void decodeInstructions(const std::vector<uint8_t>& input, std::string* pOutput)
                 int dataSize = computeImmediate(data, d, w, &source);
 
                 iInstruction += 1 + dataSize;
+            }
+            break;
+
+            // Conditional jump instructions
+
+            case 0b011100: [[fallthrough]];
+            case 0b011101: [[fallthrough]];
+            case 0b011110: [[fallthrough]];
+            case 0b011111:
+            {
+                int iInstructionName = byte[0] & 0xF;
+                instructionName = c_conditionalJumps[iInstructionName];
+
+                decodeConditionalJump(byte[1], &destination);
+
+                iInstruction += 2;
             }
             break;
 
@@ -405,6 +474,19 @@ void decodeInstructions(const std::vector<uint8_t>& input, std::string* pOutput)
             {
                 instructionName = "mov";
                 iInstruction += decodeImmToRegOrMem(byte, d, w, &destination, &source);
+            }
+            break;
+
+            // Loop instructions and jump on CX zero
+
+            case 0b111000:
+            {
+                int iInstructionName = byte[0] & 3;
+                instructionName = c_loopsAndJCXZ[iInstructionName];
+
+                decodeConditionalJump(byte[1], &destination);
+
+                iInstruction += 2;
             }
             break;
 
